@@ -5,6 +5,16 @@ import { NetworkStatusService } from './network-status.service';
 import { skip } from 'rxjs';
 import { LivFilesService } from './liv-files.service';
 
+export interface FormData {
+  fileName: any;
+  description: any,
+  fileMeta: {
+    name: string; 
+    type: string; 
+    lastModified: number;
+  }
+}
+
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
@@ -25,21 +35,30 @@ export class AppComponent {
 
   ) {
     ns.networkStatus$.pipe(skip(1)).subscribe(online => {
-      if(online)
+      if (online)
         this.fetchAll();
     })
   }
 
   ngOnInit() {
-    this.livFiles.getS3Url().subscribe(url => console.log('Url fetched - ',url))
+    this.livFiles.getS3Url().subscribe(url => console.log('Url fetched - ', url))
   }
 
   async submit() {
     console.log(this.filesForm.value);
-    if(!this.selectedFile) return;
+    if (!this.selectedFile) return;
 
     // if(!navigator.onLine) {
-      await this.storage.saveData(this.selectedFile);
+    const formData: FormData = { 
+      fileName: this.filesForm.value.fileName,
+      description: this.filesForm.value.description,
+      fileMeta: {
+        name: this.selectedFile.name, 
+        type: this.selectedFile.type, 
+        lastModified: this.selectedFile.lastModified,
+      }
+    }
+    await this.storage.saveData(formData, this.selectedFile);
     // }
 
     this.resetForm();
@@ -56,11 +75,32 @@ export class AppComponent {
   }
 
   async fetchAll() {
-    const all = await this.storage.getAll();
-
-    all.forEach((file, index) => console.log('file'+ index, new Blob([file])))
-    console.log('all files', all);
+    const allSubmissions = await this.storage.getAllSubmissions();
     
+    
+    for(let submission of allSubmissions) {
+      console.log(submission);
+    }
+
+  }
+
+  // TODO: fix the method
+  async downloadAllFiles() {
+    
+    const allSubmissions = await this.storage.getAllSubmissions();
+
+
+    allSubmissions.forEach(async ({ file }) => {
+      if(!file) return;
+
+      const url = URL.createObjectURL(file); 
+      const a = document.createElement('a'); a.href = url; 
+      a.download = file.name; 
+      document.body.appendChild(a); 
+      a.click(); 
+      document.body.removeChild(a); 
+      URL.revokeObjectURL(url);
+    })
   }
 
   async clearAll() {

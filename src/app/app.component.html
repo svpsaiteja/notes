@@ -1,7 +1,7 @@
 
 
 <main class="p-4">
-  <h2>Files form</h2>
+  <h2>Create note</h2>
   <hr>
 
   <form [formGroup]="filesForm" (submit)="submit()">
@@ -23,5 +23,6 @@
 
     <button (click)="fetchAll()" class="mt-3 btn btn-secondary">Fetch all files from DB</button>
     <button (click)="clearAll()" class="mt-3 btn btn-secondary">Clear files in DB</button>
+    <button (click)="downloadAllFiles()" class="mt-3 btn btn-secondary">Download files from DB</button>
   </div>
 </main>
