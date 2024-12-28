@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { openDB } from 'idb';
-import { FormData } from './app.component';
+import { NoteData } from './app.component';
 
 const DB = 'offlineFormData';
 const CHUNK_STORE = 'chunks';
@@ -9,7 +9,7 @@ const VERSION = 1;
 
 interface FormSubmission {
   submissionId: string;
-  formData: FormData
+  formData: NoteData
 }
 
 @Injectable({
@@ -17,64 +17,74 @@ interface FormSubmission {
 })
 export class OfflineStorageService {
 
-  private chunkSize = 10 * 1024 * 1024; //5mb
+  private chunkSize = 5 * 1024 * 1024; // 5mb
 
   private dbPromise = openDB(DB, VERSION, {
     upgrade(db) {
-      const chunkStore = db.createObjectStore(CHUNK_STORE, { keyPath: ['chunkId', 'submissionId'] });
+      const chunkStore = db.createObjectStore(CHUNK_STORE, { keyPath: [ 'submissionId', 'fileId', 'chunkId'] });
       chunkStore.createIndex('submissionId', 'submissionId');
+      chunkStore.createIndex('fileId', ['submissionId','fileId']);
       db.createObjectStore(FORM_DATA_STORE, { keyPath: 'submissionId' });
     },
   })
 
 
-  async saveData(formData: any, file: File) {
+  async saveData(formData: NoteData, files: File[]) {
     const db = await this.dbPromise;
     const submissionId = new Date().toString();
 
-    const totalChunks = Math.ceil(file.size / this.chunkSize);
-
-    for (let i = 0; i < totalChunks; i++) {
-      const chunk = (file.slice(this.chunkSize * i, this.chunkSize * (i + 1)));
-      await db.put(CHUNK_STORE, { submissionId, chunkId: i, chunk });
+    for(let [fileIndex, file] of files.entries()) {
+      const totalChunks = Math.ceil(file.size / this.chunkSize);
+  
+      for (let i = 0; i < totalChunks; i++) {
+        const chunk = (file.slice(this.chunkSize * i, this.chunkSize * (i + 1)));
+        await db.put(CHUNK_STORE, { submissionId, fileId: fileIndex, chunkId: i, chunk });
+      }
     }
 
+
     await db.put(FORM_DATA_STORE, { submissionId, formData });
-
-
-    // const fileReader = new FileReader();
-    // fileReader.readAsArrayBuffer(file)
-    // fileReader.onload = () => {
-    //   const file = fileReader.result;
-    //   console.log(file)
-
-    //   db.add(STORE, {file})
-    // }
-
-
   }
 
-  private async getChunks(submissionId: string) {
+  private async getFileChunks(submissionId: string, fileId: number) {
     const db = await this.dbPromise;
-    const chunkIndex = db.transaction(CHUNK_STORE).store.index('submissionId');
-    const chunks = await chunkIndex.getAll(submissionId);
+    const chunkIndex = db.transaction(CHUNK_STORE).store.index('fileId');
+    const chunks = await chunkIndex.getAll([submissionId, fileId]);
 
     return new Blob(chunks.map(chunk => chunk.chunk));
   }
 
-  private async getFile(submissionId: string) {
+  private async getFiles(submissionId: string) {
+    const db = await this.dbPromise;
+
+    const { formData }: { formData: NoteData} = await db.get(FORM_DATA_STORE, submissionId);
+
+    if (!formData) return null;
+
+
+    const files: File[] = [];
+    for(let [fileIndex, fileMeta] of formData.files.entries()) {
+      const chunks = await this.getFileChunks(submissionId, fileIndex);
+
+      const file = new File([chunks], fileMeta?.name, { 
+        lastModified: fileMeta?.lastModified, 
+        type: fileMeta?.type 
+      })
+
+      files.push(file)
+    }
+
+    return files;
+  }
+
+  async getSubmission(submissionId: string) {
     const db = await this.dbPromise;
 
     const { formData } = await db.get(FORM_DATA_STORE, submissionId);
 
-    if (!formData) return null;
+    const files = await this.getFiles(submissionId);
 
-    const chunks = await this.getChunks(submissionId)
-
-    return new File([chunks], formData?.fileMeta?.name, { 
-      lastModified: formData?.fileMeta?.lastModified, 
-      type: formData?.fileMeta?.type 
-    });
+    return { files, fileName: formData.fileName, description: formData.description };
   }
 
   async getAllSubmissions() {
@@ -86,13 +96,12 @@ export class OfflineStorageService {
     for(let submission of formSubmissions) {
       const {submissionId, formData } = submission;
 
-      const file = await this.getFile(submissionId);
+      const notes = await this.getSubmission(submissionId);
 
-      allSubmissions.push( { file, fileName: formData.fileName, description: formData.description });
+      allSubmissions.push( notes);
     }
 
     return allSubmissions;
-
   }
 
   async clearAll() {

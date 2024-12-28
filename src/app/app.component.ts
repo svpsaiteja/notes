@@ -5,14 +5,14 @@ import { NetworkStatusService } from './network-status.service';
 import { skip } from 'rxjs';
 import { LivFilesService } from './liv-files.service';
 
-export interface FormData {
+export interface NoteData {
   fileName: any;
   description: any,
-  fileMeta: {
+  files: {
     name: string; 
     type: string; 
     lastModified: number;
-  }
+  }[]
 }
 
 @Component({
@@ -22,7 +22,7 @@ export interface FormData {
 })
 export class AppComponent {
 
-  selectedFile: File | null = null;
+  selectedFiles: File[] | null = null;
 
   filesForm = this.fb.group({
     fileName: [''],
@@ -46,19 +46,22 @@ export class AppComponent {
 
   async submit() {
     console.log(this.filesForm.value);
-    if (!this.selectedFile) return;
+    if (!this.selectedFiles) return;
 
-    // if(!navigator.onLine) {
-    const formData: FormData = { 
+    const fileMetaDatas = this.selectedFiles.map(f => ({
+      name: f.name,
+      type: f.type,
+      lastModified: f.lastModified
+    }))
+
+    const formData: NoteData = { 
       fileName: this.filesForm.value.fileName,
       description: this.filesForm.value.description,
-      fileMeta: {
-        name: this.selectedFile.name, 
-        type: this.selectedFile.type, 
-        lastModified: this.selectedFile.lastModified,
-      }
+      files: fileMetaDatas
     }
-    await this.storage.saveData(formData, this.selectedFile);
+
+    // if(!navigator.onLine) {
+    await this.storage.saveData(formData, this.selectedFiles);
     // }
 
     this.resetForm();
@@ -66,12 +69,12 @@ export class AppComponent {
 
   resetForm() {
     this.filesForm.reset();
-    this.selectedFile = null;
+    this.selectedFiles = null;
   }
 
-  async onFileSelect(event: any) {
+  onFileSelect(event: any) {
     console.log(event.target.files);
-    this.selectedFile = event.target?.files?.[0];
+    this.selectedFiles = Array.from(event.target?.files ?? []);
   }
 
   async fetchAll() {
@@ -81,28 +84,30 @@ export class AppComponent {
     for(let submission of allSubmissions) {
       console.log(submission);
     }
-
   }
 
-  // TODO: fix the method
   async downloadAllFiles() {
     
-    const allSubmissions = await this.storage.getAllSubmissions();
+    const allSubmissions= await this.storage.getAllSubmissions();
 
 
-    allSubmissions.forEach(async ({ file }) => {
-      if(!file) return;
+    allSubmissions.forEach(({ files }) => {
+      if(!files) return;
 
-      const url = URL.createObjectURL(file); 
-      const a = document.createElement('a'); a.href = url; 
-      a.download = file.name; 
-      document.body.appendChild(a); 
-      a.click(); 
-      document.body.removeChild(a); 
-      URL.revokeObjectURL(url);
+      for(let file of files) {
+        const url = URL.createObjectURL(file); 
+        const a = document.createElement('a'); a.href = url; 
+        a.download = file.name; 
+        document.body.appendChild(a); 
+        a.click(); 
+        document.body.removeChild(a); 
+        URL.revokeObjectURL(url);
+      }
+  
     })
   }
 
+  //TODO: Fix
   async clearAll() {
     await this.storage.clearAll();
   }

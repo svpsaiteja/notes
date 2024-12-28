@@ -14,7 +14,7 @@
       <textarea formControlName="description" class="form-control" id="description"></textarea>
     </div>
     <div class="mb-3">
-      <input formControlName="file" (change)="onFileSelect($event)" type="file" class="form-control">
+      <input formControlName="file" (change)="onFileSelect($event)" type="file" class="form-control" multiple>
     </div>
     <button type="submit" class="btn btn-primary">Submit</button>
   </form>
