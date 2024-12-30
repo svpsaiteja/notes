@@ -1,0 +1,11 @@
+<ul class="list-group mb-3">
+    <li class="list-group-item" *ngFor="let note of localNotes">
+        <div class="d-flex justify-content-between">
+            <span>{{ note.fileName }}</span>
+            <button class="btn btn-outline-secondary" [routerLink]="[note.id]">Edit</button>
+        </div>
+    </li>
+</ul>
+
+
+<button class="btn btn-primary" routerLink="/add">Add note</button>

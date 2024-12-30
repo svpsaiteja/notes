@@ -1,28 +1,5 @@
 
 
 <main class="p-4">
-  <h2>Create note</h2>
-  <hr>
-
-  <form [formGroup]="filesForm" (submit)="submit()">
-    <div class="mb-3">
-      <label for="fileName" class="form-label">File name</label>
-      <input type="text" formControlName="fileName" class="form-control" id="fileName">
-    </div>
-    <div class="mb-3">
-      <label for="description" class="form-label">Description</label>
-      <textarea formControlName="description" class="form-control" id="description"></textarea>
-    </div>
-    <div class="mb-3">
-      <input formControlName="file" (change)="onFileSelect($event)" type="file" class="form-control" multiple>
-    </div>
-    <button type="submit" class="btn btn-primary">Submit</button>
-  </form>
-
-  <div class="d-flex gap-2">
-
-    <button (click)="fetchAll()" class="mt-3 btn btn-secondary">Fetch all files from DB</button>
-    <button (click)="clearAll()" class="mt-3 btn btn-secondary">Clear files in DB</button>
-    <button (click)="downloadAllFiles()" class="mt-3 btn btn-secondary">Download files from DB</button>
-  </div>
+  <router-outlet></router-outlet>
 </main>

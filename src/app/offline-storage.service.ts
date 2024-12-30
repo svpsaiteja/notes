@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { openDB } from 'idb';
+import { DBSchema, openDB } from 'idb';
 import { NoteData } from './app.component';
 
 const DB = 'offlineFormData';
@@ -7,9 +7,26 @@ const CHUNK_STORE = 'chunks';
 const FORM_DATA_STORE = 'formData'
 const VERSION = 1;
 
-interface FormSubmission {
-  submissionId: string;
-  formData: NoteData
+interface ChunkStoreData {
+  id: string;
+  fileId: number;
+  chunkId: number;
+  chunk: Blob;
+}
+
+interface OffineFormDb extends DBSchema {
+  formData: {
+    key: string;
+    value: NoteData;
+  },
+  chunks: {
+    key: string;
+    value: ChunkStoreData;
+    indexes: {
+      id: string;
+      fileId: [string, number]
+    }
+  }
 }
 
 @Injectable({
@@ -19,31 +36,30 @@ export class OfflineStorageService {
 
   private chunkSize = 5 * 1024 * 1024; // 5mb
 
-  private dbPromise = openDB(DB, VERSION, {
+  private dbPromise = openDB<OffineFormDb>(DB, VERSION, {
     upgrade(db) {
-      const chunkStore = db.createObjectStore(CHUNK_STORE, { keyPath: [ 'submissionId', 'fileId', 'chunkId'] });
-      chunkStore.createIndex('submissionId', 'submissionId');
-      chunkStore.createIndex('fileId', ['submissionId','fileId']);
-      db.createObjectStore(FORM_DATA_STORE, { keyPath: 'submissionId' });
+      const chunkStore = db.createObjectStore(CHUNK_STORE, { keyPath: [ 'id', 'fileId', 'chunkId'] });
+      chunkStore.createIndex('id', 'id');
+      chunkStore.createIndex('fileId', ['id','fileId']);
+      db.createObjectStore(FORM_DATA_STORE, { keyPath: 'id' });
     },
   })
 
 
   async saveData(formData: NoteData, files: File[]) {
     const db = await this.dbPromise;
-    const submissionId = new Date().toString();
 
     for(let [fileIndex, file] of files.entries()) {
       const totalChunks = Math.ceil(file.size / this.chunkSize);
   
       for (let i = 0; i < totalChunks; i++) {
         const chunk = (file.slice(this.chunkSize * i, this.chunkSize * (i + 1)));
-        await db.put(CHUNK_STORE, { submissionId, fileId: fileIndex, chunkId: i, chunk });
+        await db.put(CHUNK_STORE, { id: formData.id, fileId: fileIndex, chunkId: i, chunk });
       }
     }
 
 
-    await db.put(FORM_DATA_STORE, { submissionId, formData });
+    await db.put(FORM_DATA_STORE, formData);
   }
 
   private async getFileChunks(submissionId: string, fileId: number) {
@@ -54,13 +70,7 @@ export class OfflineStorageService {
     return new Blob(chunks.map(chunk => chunk.chunk));
   }
 
-  private async getFiles(submissionId: string) {
-    const db = await this.dbPromise;
-
-    const { formData }: { formData: NoteData} = await db.get(FORM_DATA_STORE, submissionId);
-
-    if (!formData) return null;
-
+  private async getFiles(submissionId: string, formData: NoteData) {
 
     const files: File[] = [];
     for(let [fileIndex, fileMeta] of formData.files.entries()) {
@@ -80,25 +90,28 @@ export class OfflineStorageService {
   async getSubmission(submissionId: string) {
     const db = await this.dbPromise;
 
-    const { formData } = await db.get(FORM_DATA_STORE, submissionId);
+    const submission = await db.get(FORM_DATA_STORE, submissionId);
 
-    const files = await this.getFiles(submissionId);
+    if (!submission) return null;
 
-    return { files, fileName: formData.fileName, description: formData.description };
+    const formData = submission;
+
+    const files = await this.getFiles(submissionId, formData);
+
+    return { files, fileName: formData.fileName, description: formData.description, id: formData.id };
   }
 
   async getAllSubmissions() {
     const db = await this.dbPromise;
 
-    const formSubmissions: FormSubmission[] = await db.getAll(FORM_DATA_STORE);
+    const formSubmissions = await db.getAll(FORM_DATA_STORE);
 
     const allSubmissions = [];
-    for(let submission of formSubmissions) {
-      const {submissionId, formData } = submission;
+    for(let formData of formSubmissions) {
 
-      const notes = await this.getSubmission(submissionId);
+      const notes = await this.getSubmission(formData.id);
 
-      allSubmissions.push( notes);
+      if(notes) allSubmissions.push( notes);
     }
 
     return allSubmissions;
@@ -106,8 +119,10 @@ export class OfflineStorageService {
 
   async clearAll() {
     const db = await this.dbPromise;
+    
+    await db.clear(FORM_DATA_STORE);
+    await db.clear(CHUNK_STORE);
 
-    return db.clear(FORM_DATA_STORE);
   }
 
 
