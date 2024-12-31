@@ -21,11 +21,8 @@ import { ServiceWorkerModule } from '@angular/service-worker';
       { path: ':id', component: NoteFormComponent },
       { path: '', component: NoteListComponent }
     ]),
-    ServiceWorkerModule.register('ngsw-worker.js', {
-      enabled: !isDevMode(),
-      // Register the ServiceWorker as soon as the application is stable
-      // or after 30 seconds (whichever comes first).
-      registrationStrategy: 'registerWhenStable:30000'
+    ServiceWorkerModule.register('service-worker.js', {
+      enabled: true,
     })
   ],
   providers: [],

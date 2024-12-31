@@ -7,6 +7,7 @@ import { NetworkStatusService } from '../network-status.service';
 import { OfflineStorageService } from '../offline-storage.service';
 import { ActivatedRoute, Router } from '@angular/router';
 import { v4 as uuidv4 } from 'uuid';
+import { BackgroundSyncService } from '../background-sync.service';
 
 @Component({
   selector: 'app-note-form',
@@ -28,13 +29,10 @@ export class NoteFormComponent {
     private router: Router,
     private route: ActivatedRoute,
     private storage: OfflineStorageService, private ns: NetworkStatusService,
-    private livFiles: LivFilesService
+    private livFiles: LivFilesService,
+    private backgroundSync: BackgroundSyncService
 
   ) {
-    ns.networkStatus$.pipe(skip(1)).subscribe(online => {
-      if (online)
-        this.fetchAll();
-    })
   }
 
   ngOnInit() {
@@ -86,6 +84,8 @@ export class NoteFormComponent {
     // }
 
     this.resetForm();
+
+    this.backgroundSync.initBackgroundSync();
 
     this.router.navigate(['']);
   }
